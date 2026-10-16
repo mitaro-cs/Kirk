@@ -1,0 +1,15 @@
+[package]
+name = "kirk-core"
+description = "Kirk: логика без окон – лимиты, Campus, музыка, геометрия острова"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+base64 = "0.22"
+dirs = "6"
