@@ -8,7 +8,15 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, "toggle", "Открыть остров", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Настройки…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Выйти из Kirk", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&toggle, &settings, &PredefinedMenuItem::separator(app)?, &quit])?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &toggle,
+            &settings,
+            &PredefinedMenuItem::separator(app)?,
+            &quit,
+        ],
+    )?;
 
     // Mac: одноцветный шаблон – система сама красит его под светлую и тёмную
     // строку меню. Windows: цветной значок приложения (чёрный не виден на
@@ -16,7 +24,9 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let icon = if cfg!(target_os = "macos") {
         tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?
     } else {
-        app.default_window_icon().cloned().expect("значок приложения")
+        app.default_window_icon()
+            .cloned()
+            .expect("значок приложения")
     };
     TrayIconBuilder::with_id("kirk")
         .icon(icon)
@@ -42,12 +52,16 @@ pub fn open_settings(app: &AppHandle) {
         let _ = win.set_focus();
         return;
     }
-    let built = tauri::WebviewWindowBuilder::new(app, "settings", tauri::WebviewUrl::App("settings.html".into()))
-        .title("Kirk – настройки")
-        .inner_size(720.0, 560.0)
-        .min_inner_size(560.0, 440.0)
-        .center()
-        .build();
+    let built = tauri::WebviewWindowBuilder::new(
+        app,
+        "settings",
+        tauri::WebviewUrl::App("settings.html".into()),
+    )
+    .title("Kirk – настройки")
+    .inner_size(720.0, 560.0)
+    .min_inner_size(560.0, 440.0)
+    .center()
+    .build();
     match built {
         Ok(win) => {
             #[cfg(target_os = "macos")]

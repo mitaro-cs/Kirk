@@ -49,6 +49,8 @@ if (triple.includes('apple-darwin')) {
     console.log('mediaremote-adapter: собран');
   } else {
     rmSync(config, { force: true });
-    console.log('mediaremote-adapter: нет vendor/mediaremote-adapter – музыка через уведомления Music и Spotify');
+    console.log(
+      'mediaremote-adapter: нет vendor/mediaremote-adapter – музыка через уведомления Music и Spotify',
+    );
   }
 }

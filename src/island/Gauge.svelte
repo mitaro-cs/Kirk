@@ -4,9 +4,9 @@
   import { percent, when } from '../lib/format';
   import { clock } from '../lib/store.svelte';
 
-  let { w, size = 92 }: { w: QuotaWindow; size?: number } = $props();
+  let { w, size = 104 }: { w: QuotaWindow; size?: number } = $props();
 
-  const R = 40;
+  const R = 42;
   const SWEEP = 0.75; // дуга на 270°
   const full = 2 * Math.PI * R * SWEEP;
   let left = $derived(1 - w.used);
@@ -42,7 +42,7 @@
   }
   circle {
     fill: none;
-    stroke-width: 7;
+    stroke-width: 6;
     stroke-linecap: round;
   }
   .track {
@@ -70,13 +70,13 @@
     line-height: 1.1;
   }
   strong {
-    font-size: 19px;
+    font-size: 17px;
     font-weight: 650;
     letter-spacing: -0.02em;
   }
   span,
   figcaption {
-    font-size: 11px;
+    font-size: 10.5px;
     color: rgb(255 255 255 / 0.55);
   }
   figcaption {

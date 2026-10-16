@@ -60,7 +60,11 @@ impl QuotaWindow {
         resets_at: Option<i64>,
         now_ms: i64,
     ) -> Self {
-        let used = if used.is_finite() { used.clamp(0.0, 1.0) } else { 0.0 };
+        let used = if used.is_finite() {
+            used.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
         QuotaWindow {
             id: id.into(),
             label: label(duration_min),

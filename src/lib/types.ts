@@ -84,6 +84,16 @@ export interface Summary {
   news: News[];
 }
 
+export interface CampusNotification {
+  id: number;
+  kind: string;
+  title: string;
+  body: string | null;
+  url: string | null;
+  createdAt: number;
+  read: boolean;
+}
+
 export interface CampusState {
   connected: boolean;
   site: string | null;
@@ -91,6 +101,14 @@ export interface CampusState {
   summary: Summary | null;
   updatedAt: number | null;
   error: string | null;
+  unread: number;
+  notifications: CampusNotification[];
+}
+
+export interface Peek {
+  title: string;
+  body: string;
+  url: string | null;
 }
 
 export interface Config {
@@ -101,6 +119,7 @@ export interface Config {
   codex: boolean;
   openOnHover: boolean;
   hotkey: string;
+  peek: boolean;
 }
 
 export interface Shape {
@@ -109,6 +128,8 @@ export interface Shape {
   compactH: number;
   openW: number;
   openH: number;
+  peekW: number;
+  peekH: number;
   shoulder: number;
 }
 

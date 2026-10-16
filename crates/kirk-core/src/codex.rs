@@ -108,20 +108,23 @@ pub fn merge(update: RateLimits, previous: &RateLimits) -> RateLimits {
 }
 
 pub fn snapshot(limits: &RateLimits, now_ms: i64) -> Snapshot {
-    let windows = [("codex-primary", &limits.primary), ("codex-secondary", &limits.secondary)]
-        .into_iter()
-        .filter_map(|(id, w)| {
-            w.as_ref().map(|w| {
-                QuotaWindow::new(
-                    id,
-                    w.window_duration_mins,
-                    w.used_percent / 100.0,
-                    w.resets_at.map(|s| s * 1000),
-                    now_ms,
-                )
-            })
+    let windows = [
+        ("codex-primary", &limits.primary),
+        ("codex-secondary", &limits.secondary),
+    ]
+    .into_iter()
+    .filter_map(|(id, w)| {
+        w.as_ref().map(|w| {
+            QuotaWindow::new(
+                id,
+                w.window_duration_mins,
+                w.used_percent / 100.0,
+                w.resets_at.map(|s| s * 1000),
+                now_ms,
+            )
         })
-        .collect();
+    })
+    .collect();
     Snapshot {
         provider: Provider::Codex,
         connection: Connection::Fresh,
@@ -184,9 +187,13 @@ pub fn locate() -> Option<PathBuf> {
 /// PATH для запуска Codex: приложение из Finder видит только системные
 /// каталоги, а Codex из npm – это скрипт, которому нужен `node`.
 pub fn augmented_path(base: Option<&std::ffi::OsStr>, home: &Path) -> std::ffi::OsString {
-    let mut dirs_list: Vec<PathBuf> = base.map(|b| std::env::split_paths(b).collect()).unwrap_or_default();
+    let mut dirs_list: Vec<PathBuf> = base
+        .map(|b| std::env::split_paths(b).collect())
+        .unwrap_or_default();
     let extra: Vec<PathBuf> = if cfg!(windows) {
-        dirs::data_dir().map(|d| vec![d.join("npm")]).unwrap_or_default()
+        dirs::data_dir()
+            .map(|d| vec![d.join("npm")])
+            .unwrap_or_default()
     } else {
         vec![
             PathBuf::from("/opt/homebrew/bin"),

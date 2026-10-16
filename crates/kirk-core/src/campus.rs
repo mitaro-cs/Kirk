@@ -110,6 +110,72 @@ impl Me {
     }
 }
 
+/// Уведомление Campus (`GET /api/notifications`).
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Notification {
+    pub id: i64,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub body: Option<String>,
+    /// Адрес на сайте (`/homework/12`) – относительный.
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub created_at: i64,
+    #[serde(default)]
+    pub read: bool,
+}
+
+#[derive(Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationPage {
+    #[serde(default)]
+    pub items: Vec<Notification>,
+    #[serde(default)]
+    pub unread: u32,
+}
+
+/// Новые непрочитанные, которых не было в прошлый раз. Первый опрос
+/// (`seen = None`) ничего не показывает – иначе при запуске всплыло бы старое.
+pub fn fresh_notifications<'a>(
+    seen: Option<&[i64]>,
+    items: &'a [Notification],
+) -> Vec<&'a Notification> {
+    let Some(seen) = seen else { return Vec::new() };
+    items
+        .iter()
+        .filter(|n| !n.read && !seen.contains(&n.id))
+        .collect()
+}
+
+/// Адрес на сайте Campus: только свой путь, без чужих хостов и схем.
+pub fn site_link(site: &str, path: &str) -> Option<String> {
+    let path = path.trim();
+    let ok = path.starts_with('/')
+        && !path.starts_with("//")
+        && !path.contains('\\')
+        && !path.chars().any(char::is_whitespace);
+    ok.then(|| format!("{}{path}", site.trim_end_matches('/')))
+}
+
+/// Убирает отмеченное задание из «Сегодня» сразу, не дожидаясь сайта.
+pub fn mark_done(today: &mut Today, id: i64, done: bool) {
+    for h in today
+        .upcoming
+        .iter_mut()
+        .chain(today.overdue.iter_mut())
+        .chain(today.exams.iter_mut())
+    {
+        if h.id == id {
+            h.done = done;
+        }
+    }
+}
+
 /// Что показывает остров.
 #[derive(Serialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -147,7 +213,12 @@ pub fn summarize(today: &Today, now_ms: i64) -> Summary {
     deadlines.sort_by_key(|h| h.due_at);
     deadlines.truncate(5);
 
-    let mut exams: Vec<Homework> = today.exams.iter().filter(|h| h.due_at >= now_ms).cloned().collect();
+    let mut exams: Vec<Homework> = today
+        .exams
+        .iter()
+        .filter(|h| h.due_at >= now_ms)
+        .cloned()
+        .collect();
     exams.sort_by_key(|h| h.due_at);
     exams.truncate(3);
 
@@ -189,13 +260,18 @@ pub fn normalize_url(input: &str) -> Option<String> {
 /// Код входа: 6 цифр, пробелы и дефисы не мешают.
 pub fn normalize_pin(input: &str) -> Option<String> {
     let digits: String = input.chars().filter(|c| c.is_ascii_digit()).collect();
-    let rest = input.chars().all(|c| c.is_ascii_digit() || c == ' ' || c == '-');
+    let rest = input
+        .chars()
+        .all(|c| c.is_ascii_digit() || c == ' ' || c == '-');
     (digits.len() == 6 && rest).then_some(digits)
 }
 
 /// Значение cookie по окончанию имени (`gb_session`, `__Host-gb_session`)
 /// из заголовков `Set-Cookie`. Возвращает (имя, значение).
-pub fn cookie<'a>(set_cookies: impl IntoIterator<Item = &'a str>, suffix: &str) -> Option<(String, String)> {
+pub fn cookie<'a>(
+    set_cookies: impl IntoIterator<Item = &'a str>,
+    suffix: &str,
+) -> Option<(String, String)> {
     set_cookies.into_iter().find_map(|h| {
         let pair = h.split(';').next()?.trim();
         let (name, value) = pair.split_once('=')?;
@@ -224,7 +300,15 @@ mod tests {
     }
 
     fn hw(id: i64, due: i64, done: bool) -> Homework {
-        Homework { id, title: format!("ДЗ {id}"), due_at: due, kind: "homework".into(), done, subject: None, place: None }
+        Homework {
+            id,
+            title: format!("ДЗ {id}"),
+            due_at: due,
+            kind: "homework".into(),
+            done,
+            subject: None,
+            place: None,
+        }
     }
 
     #[test]
@@ -246,7 +330,12 @@ mod tests {
         let mut cancelled = lesson(4, 5 * H, 6 * H);
         cancelled.cancelled = true;
         let t = Today {
-            lessons: vec![lesson(3, 4 * H, 5 * H), lesson(1, H, 2 * H), lesson(2, 2 * H + 1, 3 * H), cancelled],
+            lessons: vec![
+                lesson(3, 4 * H, 5 * H),
+                lesson(1, H, 2 * H),
+                lesson(2, 2 * H + 1, 3 * H),
+                cancelled,
+            ],
             ..Default::default()
         };
         let s = summarize(&t, H + 10);
@@ -260,24 +349,78 @@ mod tests {
     #[test]
     fn deadlines_sorted_without_done() {
         let t = Today {
-            upcoming: vec![hw(1, 30, false), hw(2, 10, true), hw(3, 20, false), hw(4, 1, false)],
+            upcoming: vec![
+                hw(1, 30, false),
+                hw(2, 10, true),
+                hw(3, 20, false),
+                hw(4, 1, false),
+            ],
             overdue: vec![hw(5, 0, false), hw(6, 0, true)],
             ..Default::default()
         };
         let s = summarize(&t, 5);
-        assert_eq!(s.deadlines.iter().map(|h| h.id).collect::<Vec<_>>(), vec![3, 1]);
+        assert_eq!(
+            s.deadlines.iter().map(|h| h.id).collect::<Vec<_>>(),
+            vec![3, 1]
+        );
         assert_eq!(s.overdue, 1);
     }
 
     #[test]
     fn urls_and_pins() {
-        assert_eq!(normalize_url("campus.example.ru/").as_deref(), Some("https://campus.example.ru"));
-        assert_eq!(normalize_url("http://192.168.1.5:8080").as_deref(), Some("http://192.168.1.5:8080"));
+        assert_eq!(
+            normalize_url("campus.example.ru/").as_deref(),
+            Some("https://campus.example.ru")
+        );
+        assert_eq!(
+            normalize_url("http://192.168.1.5:8080").as_deref(),
+            Some("http://192.168.1.5:8080")
+        );
         assert_eq!(normalize_url("  "), None);
         assert_eq!(normalize_url("https://"), None);
         assert_eq!(normalize_pin("123 456").as_deref(), Some("123456"));
         assert_eq!(normalize_pin("12345"), None);
         assert_eq!(normalize_pin("12a456"), None);
+    }
+
+    #[test]
+    fn notifications_and_links() {
+        let page: NotificationPage = serde_json::from_str(
+            r#"{"items":[{"id":3,"kind":"homework","title":"Новое задание","body":"Сети","url":"/homework/7","createdAt":5,"read":false},
+                {"id":2,"kind":"news","title":"Старое","body":null,"url":null,"createdAt":1,"read":true}],"unread":1,"next":null}"#,
+        )
+        .unwrap();
+        assert_eq!(page.unread, 1);
+        assert!(
+            fresh_notifications(None, &page.items).is_empty(),
+            "при запуске ничего не всплывает"
+        );
+        let fresh = fresh_notifications(Some(&[2]), &page.items);
+        assert_eq!(fresh.len(), 1);
+        assert_eq!(fresh[0].id, 3);
+        assert!(fresh_notifications(Some(&[2, 3]), &page.items).is_empty());
+
+        assert_eq!(
+            site_link("https://c.ru/", "/homework/7").as_deref(),
+            Some("https://c.ru/homework/7")
+        );
+        assert_eq!(site_link("https://c.ru", "//evil.com/x"), None);
+        assert_eq!(site_link("https://c.ru", "https://evil.com"), None);
+        assert_eq!(site_link("https://c.ru", "/a b"), None);
+    }
+
+    #[test]
+    fn marking_done_hides_deadline() {
+        let mut t = Today {
+            upcoming: vec![hw(1, 30, false), hw(2, 40, false)],
+            ..Default::default()
+        };
+        mark_done(&mut t, 1, true);
+        let s = summarize(&t, 5);
+        assert_eq!(
+            s.deadlines.iter().map(|h| h.id).collect::<Vec<_>>(),
+            vec![2]
+        );
     }
 
     #[test]

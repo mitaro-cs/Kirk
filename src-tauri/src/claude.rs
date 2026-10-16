@@ -14,7 +14,11 @@ use crate::hub::{self, Hub};
 /// Мост лежит рядом с приложением (sidecar Tauri).
 pub fn bridge_path() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let name = if cfg!(windows) { "kirk-bridge.exe" } else { "kirk-bridge" };
+    let name = if cfg!(windows) {
+        "kirk-bridge.exe"
+    } else {
+        "kirk-bridge"
+    };
     let path = exe.parent().ok_or("нет каталога приложения")?.join(name);
     if path.is_file() {
         Ok(path)
@@ -25,7 +29,11 @@ pub fn bridge_path() -> Result<PathBuf, String> {
 
 fn snapshot(app: &AppHandle) -> Snapshot {
     if !app.state::<Hub>().config().claude {
-        return Snapshot::empty(Provider::Claude, Connection::Waiting, Some("Выключено в настройках"));
+        return Snapshot::empty(
+            Provider::Claude,
+            Connection::Waiting,
+            Some("Выключено в настройках"),
+        );
     }
     let snap = claude::read(&claude::snapshot_path(), kirk_core::now_ms());
     if snap.connection != Connection::Waiting {
@@ -118,7 +126,8 @@ pub fn install() -> Result<(), String> {
     let (path, text) = read_settings()?;
     let next = claude::install(&text, &bridge)?;
     if !text.is_empty() {
-        std::fs::write(path.with_extension("json.kirk-backup"), &text).map_err(|e| e.to_string())?;
+        std::fs::write(path.with_extension("json.kirk-backup"), &text)
+            .map_err(|e| e.to_string())?;
     }
     kirk_core::paths::write_atomic(&path, next.as_bytes()).map_err(|e| e.to_string())
 }

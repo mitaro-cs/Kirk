@@ -15,7 +15,10 @@ const REFRESH: Duration = Duration::from_secs(5 * 60);
 const ANSWER: Duration = Duration::from_secs(30);
 
 fn emit(app: &AppHandle, connection: Connection, note: &str) {
-    hub::set_limits(app, Snapshot::empty(Provider::Codex, connection, Some(note)));
+    hub::set_limits(
+        app,
+        Snapshot::empty(Provider::Codex, connection, Some(note)),
+    );
 }
 
 pub fn start(app: AppHandle) {
@@ -42,7 +45,11 @@ pub fn start(app: AppHandle) {
                 Err(e) => {
                     log::warn!("Codex: {e}");
                     let mut snap = app.state::<Hub>().limits()[1].clone();
-                    snap.connection = if snap.windows.is_empty() { Connection::Failed } else { Connection::Stale };
+                    snap.connection = if snap.windows.is_empty() {
+                        Connection::Failed
+                    } else {
+                        Connection::Stale
+                    };
                     snap.note = Some(format!("Codex: {e}"));
                     hub::set_limits(&app, snap);
                     tokio::time::sleep(backoff).await;
@@ -67,29 +74,48 @@ struct Rpc {
 
 impl Rpc {
     async fn send(&mut self, line: String) -> Result<(), String> {
-        self.stdin.write_all(line.as_bytes()).await.map_err(|e| e.to_string())?;
-        self.stdin.write_all(b"\n").await.map_err(|e| e.to_string())?;
+        self.stdin
+            .write_all(line.as_bytes())
+            .await
+            .map_err(|e| e.to_string())?;
+        self.stdin
+            .write_all(b"\n")
+            .await
+            .map_err(|e| e.to_string())?;
         self.stdin.flush().await.map_err(|e| e.to_string())
     }
 
     /// Запрос и ожидание ответа; уведомления по пути тоже разбираются.
-    async fn call(&mut self, app: &AppHandle, method: &str, params: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
+    async fn call(
+        &mut self,
+        app: &AppHandle,
+        method: &str,
+        params: Option<serde_json::Value>,
+    ) -> Result<serde_json::Value, String> {
         self.next += 1;
         let id = self.next;
         self.send(codex::request(id, method, params)).await?;
         let wait = async {
             loop {
                 let line = self.lines.next_line().await.map_err(|e| e.to_string())?;
-                let Some(line) = line else { return Err("Codex закрылся".to_string()) };
+                let Some(line) = line else {
+                    return Err("Codex закрылся".to_string());
+                };
                 match codex::parse(&line) {
                     Some(Inbound::Response { id: got, result }) if got == id => return Ok(result),
-                    Some(Inbound::Failure { id: got, message }) if got == id => return Err(message),
-                    Some(Inbound::Notification { method, params }) => self.notified(app, &method, &params),
+                    Some(Inbound::Failure { id: got, message }) if got == id => {
+                        return Err(message)
+                    }
+                    Some(Inbound::Notification { method, params }) => {
+                        self.notified(app, &method, &params)
+                    }
                     _ => {}
                 }
             }
         };
-        tokio::time::timeout(ANSWER, wait).await.map_err(|_| "Codex не ответил".to_string())?
+        tokio::time::timeout(ANSWER, wait)
+            .await
+            .map_err(|_| "Codex не ответил".to_string())?
     }
 
     fn notified(&mut self, app: &AppHandle, method: &str, params: &serde_json::Value) {
@@ -106,7 +132,10 @@ async fn session(app: &AppHandle, path: &std::path::Path) -> Result<Ended, Strin
     let home = dirs_home();
     let mut cmd = Command::new(path);
     cmd.arg("app-server")
-        .env("PATH", codex::augmented_path(std::env::var_os("PATH").as_deref(), &home))
+        .env(
+            "PATH",
+            codex::augmented_path(std::env::var_os("PATH").as_deref(), &home),
+        )
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -121,7 +150,12 @@ async fn session(app: &AppHandle, path: &std::path::Path) -> Result<Ended, Strin
         limits: RateLimits::default(),
     };
 
-    rpc.call(app, codex::INITIALIZE, Some(codex::initialize_params(env!("CARGO_PKG_VERSION")))).await?;
+    rpc.call(
+        app,
+        codex::INITIALIZE,
+        Some(codex::initialize_params(env!("CARGO_PKG_VERSION"))),
+    )
+    .await?;
     rpc.send(codex::notification(codex::INITIALIZED)).await?;
     let account = rpc.call(app, codex::READ_ACCOUNT, None).await?;
     if !codex::signed_in(&account) {

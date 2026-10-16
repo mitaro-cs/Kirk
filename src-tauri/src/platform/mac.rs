@@ -41,7 +41,12 @@ pub fn prepare_island(window: &WebviewWindow) -> tauri::Result<()> {
     let panel = window.to_panel::<IslandPanel>()?;
     // Выше строки меню (24), как системные индикаторы.
     panel.set_level(PanelLevel::Status.value() + 1);
-    if let Err(e) = panel.set_style_mask(StyleMask::empty().borderless().nonactivating_panel().value()) {
+    if let Err(e) = panel.set_style_mask(
+        StyleMask::empty()
+            .borderless()
+            .nonactivating_panel()
+            .value(),
+    ) {
         log::warn!("остров без nonactivating: {e:?}");
     }
     panel.set_collection_behavior(

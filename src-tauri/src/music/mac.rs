@@ -17,7 +17,10 @@ use block2::RcBlock;
 use kirk_core::music::{self, Command, NowPlaying};
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
-use objc2_foundation::{NSDictionary, NSDistributedNotificationCenter, NSNotification, NSNumber, NSOperationQueue, NSString};
+use objc2_foundation::{
+    NSDictionary, NSDistributedNotificationCenter, NSNotification, NSNumber, NSOperationQueue,
+    NSString,
+};
 use tauri::{AppHandle, Manager};
 
 use crate::hub::{self, MusicState};
@@ -31,9 +34,16 @@ struct Adapter {
 
 impl Adapter {
     fn find(app: &AppHandle) -> Option<Adapter> {
-        let script = app.path().resource_dir().ok()?.join("mediaremote-adapter.pl");
+        let script = app
+            .path()
+            .resource_dir()
+            .ok()?
+            .join("mediaremote-adapter.pl");
         let exe = std::env::current_exe().ok()?;
-        let framework = exe.parent()?.parent()?.join("Frameworks/MediaRemoteAdapter.framework");
+        let framework = exe
+            .parent()?
+            .parent()?
+            .join("Frameworks/MediaRemoteAdapter.framework");
         (script.is_file() && framework.is_dir()).then_some(Adapter { script, framework })
     }
 
@@ -71,17 +81,40 @@ fn stream(app: AppHandle, adapter: Adapter) {
         let mut child = match child {
             Ok(c) => c,
             Err(e) => {
-                hub::set_music(&app, MusicState { available: false, note: Some(format!("Адаптер музыки: {e}")), now: None });
+                hub::set_music(
+                    &app,
+                    MusicState {
+                        available: false,
+                        note: Some(format!("Адаптер музыки: {e}")),
+                        now: None,
+                    },
+                );
                 return;
             }
         };
-        hub::set_music(&app, MusicState { available: true, note: None, now: None });
+        hub::set_music(
+            &app,
+            MusicState {
+                available: true,
+                note: None,
+                now: None,
+            },
+        );
         let mut current: Option<NowPlaying> = None;
         if let Some(out) = child.stdout.take() {
             for line in BufReader::new(out).lines().map_while(Result::ok) {
-                if let Some(next) = music::parse_adapter_line(&line, current.as_ref(), kirk_core::now_ms()) {
+                if let Some(next) =
+                    music::parse_adapter_line(&line, current.as_ref(), kirk_core::now_ms())
+                {
                     current = next;
-                    hub::set_music(&app, MusicState { available: true, note: None, now: current.clone() });
+                    hub::set_music(
+                        &app,
+                        MusicState {
+                            available: true,
+                            note: None,
+                            now: current.clone(),
+                        },
+                    );
                     backoff = Duration::from_secs(2);
                 }
             }
@@ -126,12 +159,22 @@ fn parse(info: &NSDictionary<AnyObject, AnyObject>, player: &'static str) -> Opt
 }
 
 fn notifications(app: AppHandle) {
-    hub::set_music(&app, MusicState { available: true, note: Some("Music и Spotify".into()), now: None });
+    hub::set_music(
+        &app,
+        MusicState {
+            available: true,
+            note: Some("Music и Spotify".into()),
+            now: None,
+        },
+    );
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         let center = NSDistributedNotificationCenter::defaultCenter();
         let queue = NSOperationQueue::mainQueue();
-        for (name, player) in [("com.apple.Music.playerInfo", "Music"), ("com.spotify.client.PlaybackStateChanged", "Spotify")] {
+        for (name, player) in [
+            ("com.apple.Music.playerInfo", "Music"),
+            ("com.spotify.client.PlaybackStateChanged", "Spotify"),
+        ] {
             let app = handle.clone();
             let block = RcBlock::new(move |n: NonNull<NSNotification>| {
                 let n = unsafe { n.as_ref() };
@@ -140,10 +183,22 @@ fn notifications(app: AppHandle) {
                 if now.is_some() {
                     *PLAYER.lock().unwrap_or_else(|e| e.into_inner()) = Some(player);
                 }
-                hub::set_music(&app, MusicState { available: true, note: None, now });
+                hub::set_music(
+                    &app,
+                    MusicState {
+                        available: true,
+                        note: None,
+                        now,
+                    },
+                );
             });
             let token = unsafe {
-                center.addObserverForName_object_queue_usingBlock(Some(&NSString::from_str(name)), None, Some(&queue), &block)
+                center.addObserverForName_object_queue_usingBlock(
+                    Some(&NSString::from_str(name)),
+                    None,
+                    Some(&queue),
+                    &block,
+                )
             };
             // Наблюдатель живёт всё время работы приложения.
             std::mem::forget(token);
@@ -154,10 +209,17 @@ fn notifications(app: AppHandle) {
 pub fn send(app: &AppHandle, command: Command) -> Result<(), String> {
     if let Some(adapter) = Adapter::find(app) {
         let id = command.adapter_id().to_string();
-        let status = adapter.command(&["send", &id]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+        let status = adapter
+            .command(&["send", &id])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
         return status.map(|_| ()).map_err(|e| e.to_string());
     }
-    let player = PLAYER.lock().unwrap_or_else(|e| e.into_inner()).ok_or("ничего не играет")?;
+    let player = PLAYER
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .ok_or("ничего не играет")?;
     let verb = match command {
         Command::Toggle => "playpause",
         Command::Next => "next track",

@@ -43,6 +43,8 @@ struct Inner {
     inside_since: Option<Instant>,
     outside_since: Option<Instant>,
     opened_at: Instant,
+    /// Сейчас всплыло уведомление (остров закрыт, но шире).
+    peeking: bool,
     generation: u64,
 }
 
@@ -69,14 +71,30 @@ fn window(app: &AppHandle) -> Option<WebviewWindow> {
 fn measure(app: &AppHandle) -> Option<(Screen, Monitor)> {
     let mon = app.primary_monitor().ok().flatten()?;
     let scale = mon.scale_factor();
-    let screen = Screen { width: mon.size().width as f64 / scale, notch: crate::platform::notch() };
+    let screen = Screen {
+        width: mon.size().width as f64 / scale,
+        notch: crate::platform::notch(),
+    };
     let pos = mon.position();
-    Some((screen, Monitor { x: pos.x, y: pos.y, scale }))
+    Some((
+        screen,
+        Monitor {
+            x: pos.x,
+            y: pos.y,
+            scale,
+        },
+    ))
 }
 
 fn place(win: &WebviewWindow, m: Monitor, r: Rect) {
-    let size = PhysicalSize::new((r.w * m.scale).round() as u32, (r.h * m.scale).round() as u32);
-    let pos = PhysicalPosition::new(m.x + (r.x * m.scale).round() as i32, m.y + (r.y * m.scale).round() as i32);
+    let size = PhysicalSize::new(
+        (r.w * m.scale).round() as u32,
+        (r.h * m.scale).round() as u32,
+    );
+    let pos = PhysicalPosition::new(
+        m.x + (r.x * m.scale).round() as i32,
+        m.y + (r.y * m.scale).round() as i32,
+    );
     let _ = win.set_size(size);
     let _ = win.set_position(pos);
 }
@@ -96,12 +114,17 @@ fn apply_screen(app: &AppHandle, screen: Screen, monitor: Monitor) {
     let island = app.state::<Island>();
     let mut guard = island.0.lock().unwrap_or_else(|e| e.into_inner());
     let open = guard.as_ref().is_some_and(|i| i.open);
-    let changed = guard.as_ref().is_none_or(|i| i.screen != screen || i.monitor != monitor);
+    let changed = guard
+        .as_ref()
+        .is_none_or(|i| i.screen != screen || i.monitor != monitor);
     if !changed {
         return;
     }
     let shape = geometry::shape(&screen);
-    *app.state::<Hub>().shape.lock().unwrap_or_else(|e| e.into_inner()) = Some(shape);
+    *app.state::<Hub>()
+        .shape
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = Some(shape);
     match guard.as_mut() {
         Some(i) => {
             i.screen = screen;
@@ -117,12 +140,17 @@ fn apply_screen(app: &AppHandle, screen: Screen, monitor: Monitor) {
                 inside_since: None,
                 outside_since: None,
                 opened_at: Instant::now(),
+                peeking: false,
                 generation: 0,
             })
         }
     }
     if let Some(win) = window(app) {
-        let rect = if open { geometry::open_rect(&screen) } else { geometry::compact_rect(&screen) };
+        let rect = if open {
+            geometry::open_rect(&screen)
+        } else {
+            geometry::compact_rect(&screen)
+        };
         place(&win, monitor, rect);
     }
     let _ = app.emit("kirk:island", IslandEvent { open, shape });
@@ -143,11 +171,15 @@ pub fn set_open(app: &AppHandle, open: bool, pinned: bool) {
     inner.inside_since = None;
     inner.outside_since = None;
     inner.opened_at = Instant::now();
+    inner.peeking = false;
     inner.generation += 1;
     let (screen, monitor, generation) = (inner.screen, inner.monitor, inner.generation);
     drop(guard);
 
-    *app.state::<Hub>().open.lock().unwrap_or_else(|e| e.into_inner()) = open;
+    *app.state::<Hub>()
+        .open
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = open;
     let shape = geometry::shape(&screen);
     let Some(win) = window(app) else { return };
     if open {
@@ -174,15 +206,95 @@ pub fn set_open(app: &AppHandle, open: bool, pinned: bool) {
 }
 
 pub fn toggle(app: &AppHandle) {
-    let open = app.state::<Island>().0.lock().unwrap_or_else(|e| e.into_inner()).as_ref().is_some_and(|i| i.open);
+    let open = app
+        .state::<Island>()
+        .0
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .is_some_and(|i| i.open);
     set_open(app, !open, true);
+}
+
+/// Сколько висит всплывшее уведомление.
+const PEEK_FOR: Duration = Duration::from_secs(6);
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Peek {
+    pub title: String,
+    pub body: String,
+    /// Страница Campus, куда ведёт уведомление.
+    pub url: Option<String>,
+}
+
+/// Коротко показать уведомление в закрытом острове. Открытый не трогаем.
+pub fn peek(app: &AppHandle, title: String, body: String, url: Option<String>) {
+    if !app.state::<Hub>().config().peek {
+        return;
+    }
+    let island = app.state::<Island>();
+    let mut guard = island.0.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(inner) = guard.as_mut() else { return };
+    if inner.open {
+        return;
+    }
+    inner.peeking = true;
+    inner.generation += 1;
+    let (screen, monitor, generation) = (inner.screen, inner.monitor, inner.generation);
+    drop(guard);
+
+    let Some(win) = window(app) else { return };
+    place(&win, monitor, geometry::peek_rect(&screen));
+    let _ = app.emit("kirk:peek", Some(Peek { title, body, url }));
+
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let ours = |app: &AppHandle| {
+            app.state::<Island>()
+                .0
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .as_ref()
+                .is_some_and(|i| !i.open && i.generation == generation)
+        };
+        std::thread::sleep(PEEK_FOR);
+        if !ours(&app) {
+            return;
+        }
+        let _ = app.emit("kirk:peek", None::<Peek>);
+        std::thread::sleep(CLOSE_ANIMATION);
+        if ours(&app) {
+            if let Some(i) = app
+                .state::<Island>()
+                .0
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .as_mut()
+            {
+                i.peeking = false;
+            }
+            place(&win, monitor, geometry::compact_rect(&screen));
+        }
+    });
 }
 
 /// Где сейчас остров (без плеч), в точках относительно монитора.
 fn hit_rect(i: &Inner) -> Rect {
     let s = geometry::shape(&i.screen);
-    let (w, h) = if i.open { (s.open_w, s.open_h) } else { (s.compact_w, s.compact_h) };
-    Rect { x: (i.screen.width - w) / 2.0, y: 0.0, w, h }
+    let (w, h) = if i.open {
+        (s.open_w, s.open_h)
+    } else if i.peeking {
+        (s.peek_w, s.peek_h)
+    } else {
+        (s.compact_w, s.compact_h)
+    };
+    Rect {
+        x: (i.screen.width - w) / 2.0,
+        y: 0.0,
+        w,
+        h,
+    }
 }
 
 fn start_hover(app: AppHandle) {
@@ -201,7 +313,9 @@ fn start_hover(app: AppHandle) {
                         }
                     });
                 }
-                let Ok(cursor) = app.cursor_position() else { continue };
+                let Ok(cursor) = app.cursor_position() else {
+                    continue;
+                };
                 if let Some(action) = hover_step(&app, cursor) {
                     set_open(&app, action, false);
                 }

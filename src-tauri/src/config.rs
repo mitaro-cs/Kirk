@@ -16,6 +16,8 @@ pub struct Config {
     pub open_on_hover: bool,
     /// Сочетание клавиш «открыть/закрыть».
     pub hotkey: String,
+    /// Новые уведомления Campus коротко всплывают в острове.
+    pub peek: bool,
 }
 
 impl Default for Config {
@@ -28,6 +30,7 @@ impl Default for Config {
             codex: true,
             open_on_hover: true,
             hotkey: "Control+Alt+K".into(),
+            peek: true,
         }
     }
 }

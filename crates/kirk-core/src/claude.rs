@@ -117,22 +117,30 @@ pub fn publish(input: &[u8], now_s: f64, dest: &Path) -> Result<(), BridgeError>
     let input: StatusLineInput =
         serde_json::from_slice(input).map_err(|_| BridgeError::Malformed)?;
     let limits = input.rate_limits.ok_or(BridgeError::NoRateLimits)?;
-    let incoming: Vec<StoredWindow> = [("five_hour", limits.five_hour), ("seven_day", limits.seven_day)]
-        .into_iter()
-        .filter_map(|(id, w)| {
-            w.map(|w| StoredWindow {
-                id: id.into(),
-                used_percentage: w.used_percentage,
-                resets_at: w.resets_at,
-            })
+    let incoming: Vec<StoredWindow> = [
+        ("five_hour", limits.five_hour),
+        ("seven_day", limits.seven_day),
+    ]
+    .into_iter()
+    .filter_map(|(id, w)| {
+        w.map(|w| StoredWindow {
+            id: id.into(),
+            used_percentage: w.used_percentage,
+            resets_at: w.resets_at,
         })
-        .collect();
+    })
+    .collect();
     if incoming.is_empty() {
         return Err(BridgeError::NoRateLimits);
     }
 
     let held = load(dest).map(|s| s.sessions).unwrap_or_default();
-    let sessions = record(&incoming, &session_key(input.session_id.as_deref()), held, now_s);
+    let sessions = record(
+        &incoming,
+        &session_key(input.session_id.as_deref()),
+        held,
+        now_s,
+    );
     let stored = Stored {
         schema_version: 1,
         captured_at: now_s,
@@ -177,7 +185,11 @@ fn record(
         .into_iter()
         .filter(|s| s.id != id && now - s.seen_at < FORGET_S)
         .collect();
-    sessions.push(StoredSession { id: id.into(), seen_at: now, windows });
+    sessions.push(StoredSession {
+        id: id.into(),
+        seen_at: now,
+        windows,
+    });
     sessions.sort_by(|a, b| b.seen_at.total_cmp(&a.seen_at));
     sessions.truncate(MAX_SESSIONS);
     sessions
@@ -220,9 +232,16 @@ pub fn read(path: &Path, now_ms: i64) -> Snapshot {
     let windows: Vec<QuotaWindow> = WINDOWS
         .iter()
         .filter_map(|(id, minutes)| {
-            let seen_ever = stored.sessions.iter().any(|s| s.windows.iter().any(|w| w.id == *id))
+            let seen_ever = stored
+                .sessions
+                .iter()
+                .any(|s| s.windows.iter().any(|w| w.id == *id))
                 || stored.windows.iter().any(|w| w.id == *id);
-            match stored.windows.iter().find(|w| w.id == *id && w.resets_at > now_s) {
+            match stored
+                .windows
+                .iter()
+                .find(|w| w.id == *id && w.resets_at > now_s)
+            {
                 Some(w) => Some(QuotaWindow::new(
                     *id,
                     Some(*minutes),
@@ -330,7 +349,11 @@ pub fn install(text: &str, bridge: &Path) -> Result<String, String> {
         Some(Value::Object(o)) => o,
         _ => Map::new(),
     };
-    let current = line.get("command").and_then(Value::as_str).unwrap_or("").to_owned();
+    let current = line
+        .get("command")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
     let previous = if current.contains(MARK) {
         previous_command(&current)
     } else {
@@ -446,7 +469,10 @@ mod tests {
             publish(br#"{"session_id":"a"}"#, 200.0, &file),
             Err(BridgeError::NoRateLimits)
         );
-        assert_eq!(publish(b"not json", 200.0, &file), Err(BridgeError::Malformed));
+        assert_eq!(
+            publish(b"not json", 200.0, &file),
+            Err(BridgeError::Malformed)
+        );
         assert_eq!(std::fs::read(&file).unwrap(), before);
     }
 
@@ -457,7 +483,8 @@ mod tests {
 
     #[test]
     fn install_keeps_previous_command_and_other_keys() {
-        let text = r#"{"model":"opus","statusLine":{"type":"command","command":"echo 'hi'","padding":0}}"#;
+        let text =
+            r#"{"model":"opus","statusLine":{"type":"command","command":"echo 'hi'","padding":0}}"#;
         assert_eq!(status(text).unwrap(), StatusLine::Other("echo 'hi'".into()));
         let bridge = Path::new("/Applications/Kirk.app/Contents/MacOS/kirk-bridge");
         let installed = install(text, bridge).unwrap();
@@ -471,7 +498,10 @@ mod tests {
         let again = install(&installed, bridge).unwrap();
         assert_eq!(again, installed);
         let removed = uninstall(&installed).unwrap();
-        assert_eq!(status(&removed).unwrap(), StatusLine::Other("echo 'hi'".into()));
+        assert_eq!(
+            status(&removed).unwrap(),
+            StatusLine::Other("echo 'hi'".into())
+        );
     }
 
     #[test]

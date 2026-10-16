@@ -69,3 +69,24 @@ pub async fn campus_connect(app: AppHandle, url: String, pin: String) -> Result<
 pub fn campus_disconnect(app: AppHandle) {
     crate::campus::disconnect(&app);
 }
+
+#[tauri::command]
+pub async fn campus_done(app: AppHandle, id: i64, value: bool) -> Result<(), String> {
+    crate::campus::set_done(&app, id, value).await
+}
+
+#[tauri::command]
+pub async fn campus_read_all(app: AppHandle) -> Result<(), String> {
+    crate::campus::read_all(&app).await
+}
+
+/// Открыть страницу Campus в браузере: `/homework/12`, `/schedule/5`, `/notifications`.
+#[tauri::command]
+pub fn campus_open(app: AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = crate::campus::link(&app, &path)?;
+    crate::island::set_open(&app, false, false);
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
+}

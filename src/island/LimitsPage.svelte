@@ -46,7 +46,8 @@
 <style>
   .limits {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 10px;
     height: 100%;
   }

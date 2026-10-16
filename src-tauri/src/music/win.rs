@@ -34,7 +34,14 @@ fn run(app: AppHandle) {
     let manager = match Manager::RequestAsync().and_then(|op| op.join()) {
         Ok(m) => m,
         Err(e) => {
-            hub::set_music(&app, MusicState { available: false, note: Some(format!("Медиаэлементы Windows недоступны: {e}")), now: None });
+            hub::set_music(
+                &app,
+                MusicState {
+                    available: false,
+                    note: Some(format!("Медиаэлементы Windows недоступны: {e}")),
+                    now: None,
+                },
+            );
             return;
         }
     };
@@ -58,8 +65,18 @@ fn run(app: AppHandle) {
             }
             subscribed = id;
         }
-        let now = session.as_ref().and_then(|s| read(s, &mut artwork).ok()).flatten();
-        hub::set_music(&app, MusicState { available: true, note: None, now });
+        let now = session
+            .as_ref()
+            .and_then(|s| read(s, &mut artwork).ok())
+            .flatten();
+        hub::set_music(
+            &app,
+            MusicState {
+                available: true,
+                note: None,
+                now,
+            },
+        );
 
         // Ждём события; позицию раз в 5 с перечитываем и без него.
         let _ = rx.recv_timeout(Duration::from_secs(5));
@@ -86,7 +103,10 @@ fn subscribe(session: &Session, tx: &mpsc::Sender<()>) {
     }));
 }
 
-fn read(session: &Session, artwork: &mut Option<(String, Option<String>)>) -> windows::core::Result<Option<NowPlaying>> {
+fn read(
+    session: &Session,
+    artwork: &mut Option<(String, Option<String>)>,
+) -> windows::core::Result<Option<NowPlaying>> {
     let props = session.TryGetMediaPropertiesAsync()?.join()?;
     let title = props.Title()?.to_string();
     if title.is_empty() {
@@ -98,7 +118,8 @@ fn read(session: &Session, artwork: &mut Option<(String, Option<String>)>) -> wi
     let timeline = session.GetTimelineProperties()?;
     // TimeSpan – сотни наносекунд.
     let ticks = |t: windows::Foundation::TimeSpan| t.Duration as f64 / 10_000_000.0;
-    let duration = Some(ticks(timeline.EndTime()?) - ticks(timeline.StartTime()?)).filter(|d| *d > 0.0);
+    let duration =
+        Some(ticks(timeline.EndTime()?) - ticks(timeline.StartTime()?)).filter(|d| *d > 0.0);
     let elapsed = Some(ticks(timeline.Position()?));
     let updated = timeline.LastUpdatedTime()?.UniversalTime; // 100 нс с 1601 года
     let elapsed_at = Some((updated - 116_444_736_000_000_000) / 10_000).filter(|t| *t > 0);
@@ -126,8 +147,12 @@ fn read(session: &Session, artwork: &mut Option<(String, Option<String>)>) -> wi
     }))
 }
 
-fn thumbnail(props: &windows::Media::Control::GlobalSystemMediaTransportControlsSessionMediaProperties) -> windows::core::Result<Option<String>> {
-    let Ok(reference) = props.Thumbnail() else { return Ok(None) };
+fn thumbnail(
+    props: &windows::Media::Control::GlobalSystemMediaTransportControlsSessionMediaProperties,
+) -> windows::core::Result<Option<String>> {
+    let Ok(reference) = props.Thumbnail() else {
+        return Ok(None);
+    };
     let stream = reference.OpenReadAsync()?.join()?;
     let size = stream.Size()? as u32;
     if size == 0 || size > 4_000_000 {
@@ -137,18 +162,32 @@ fn thumbnail(props: &windows::Media::Control::GlobalSystemMediaTransportControls
     reader.LoadAsync(size)?.join()?;
     let mut buf = vec![0u8; size as usize];
     reader.ReadBytes(&mut buf)?;
-    let mime = stream.ContentType().map(|s| s.to_string()).unwrap_or_default();
-    let mime = if mime.starts_with("image/") { mime } else { "image/jpeg".into() };
-    Ok(Some(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(buf))))
+    let mime = stream
+        .ContentType()
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+    let mime = if mime.starts_with("image/") {
+        mime
+    } else {
+        "image/jpeg".into()
+    };
+    Ok(Some(format!(
+        "data:{mime};base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(buf)
+    )))
 }
 
 pub fn send(_app: &AppHandle, command: Command) -> Result<(), String> {
     let manager = MANAGER.get().ok_or("музыка не запущена")?;
-    let session = manager.GetCurrentSession().map_err(|_| "ничего не играет".to_string())?;
+    let session = manager
+        .GetCurrentSession()
+        .map_err(|_| "ничего не играет".to_string())?;
     let op = match command {
         Command::Toggle => session.TryTogglePlayPauseAsync(),
         Command::Next => session.TrySkipNextAsync(),
         Command::Previous => session.TrySkipPreviousAsync(),
     };
-    op.and_then(|o| o.join()).map(|_| ()).map_err(|e| e.to_string())
+    op.and_then(|o| o.join())
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }

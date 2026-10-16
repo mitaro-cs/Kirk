@@ -16,7 +16,7 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 pub(crate) fn campus_wake(app: &AppHandle) {
-    app.state::<campus::Wake>().0.notify_one();
+    app.state::<campus::Campus>().wake();
 }
 
 #[tauri::command]
@@ -27,14 +27,24 @@ fn autostart_get(app: AppHandle) -> bool {
 #[tauri::command]
 fn autostart_set(app: AppHandle, value: bool) -> Result<(), String> {
     let launcher = app.autolaunch();
-    if value { launcher.enable() } else { launcher.disable() }.map_err(|e| e.to_string())
+    if value {
+        launcher.enable()
+    } else {
+        launcher.disable()
+    }
+    .map_err(|e| e.to_string())
 }
 
 pub fn run() {
     let config = config::load();
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::open_settings(app)))
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::open_settings(app)
+        }))
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
         .plugin(tauri_plugin_opener::init())
         .plugin(shortcut::plugin());
     #[cfg(target_os = "macos")]
@@ -43,7 +53,7 @@ pub fn run() {
     builder
         .manage(hub::Hub::new(config))
         .manage(island::Island::new())
-        .manage(campus::Wake(tokio::sync::Notify::new()))
+        .manage(campus::Campus::new())
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::island_open,
@@ -55,6 +65,9 @@ pub fn run() {
             commands::claude_uninstall,
             commands::campus_connect,
             commands::campus_disconnect,
+            commands::campus_done,
+            commands::campus_read_all,
+            commands::campus_open,
             autostart_get,
             autostart_set,
         ])

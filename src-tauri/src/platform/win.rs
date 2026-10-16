@@ -11,7 +11,11 @@ pub fn prepare_island(window: &WebviewWindow) -> tauri::Result<()> {
         // Щелчок по острову не уводит фокус из окна, где печатают;
         // в Alt+Tab и на панели задач острова нет.
         let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | (WS_EX_NOACTIVATE.0 | WS_EX_TOOLWINDOW.0) as isize);
+        SetWindowLongPtrW(
+            hwnd,
+            GWL_EXSTYLE,
+            ex | (WS_EX_NOACTIVATE.0 | WS_EX_TOOLWINDOW.0) as isize,
+        );
     }
     Ok(())
 }

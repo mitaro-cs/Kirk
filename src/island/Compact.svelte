@@ -23,6 +23,7 @@
   let summary = $derived(s.config.campus ? s.campus.summary : null);
   let lesson = $derived(summary?.current ?? summary?.next ?? null);
   let notch = $derived(s.shape?.notch ?? null);
+  let unread = $derived(s.config.campus ? s.campus.unread : 0);
 </script>
 
 <div class="compact" class:plain={!notch} style="--notch:{notch?.width ?? 0}px">
@@ -53,6 +54,7 @@
         <span class="lesson">{clockTime(lesson.startsAt)}</span>
       {/if}
     {/if}
+    {#if unread > 0}<i class="unread" title="Новых уведомлений: {unread}"></i>{/if}
   </div>
 </div>
 
@@ -130,6 +132,13 @@
   }
   .lesson.now {
     color: var(--ok);
+  }
+  .unread {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--critical);
+    flex: none;
   }
   @media (prefers-reduced-motion: reduce) {
     .bars i {

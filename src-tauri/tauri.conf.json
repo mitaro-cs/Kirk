@@ -53,14 +53,20 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/kirk-bridge"],
+    "externalBin": [
+      "binaries/kirk-bridge"
+    ],
     "macOS": {
-      "minimumSystemVersion": "13.0"
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-"
     },
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["Russian", "English"],
+        "languages": [
+          "Russian",
+          "English"
+        ],
         "displayLanguageSelector": false
       }
     }

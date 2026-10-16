@@ -5,7 +5,8 @@ const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
 
 const time = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' });
-const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
+const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'short' });
+const date = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
 
 export const clockTime = (ms: number) => time.format(ms);
 
@@ -15,12 +16,13 @@ function startOfDay(ms: number) {
   return d.getTime();
 }
 
-/** «14:20», «завтра 09:00», «пт, 18 окт., 23:59». */
+/** Коротко: «14:20», «завтра 09:00», «пт 23:59» (эта неделя), «18 окт.». */
 export function when(ms: number, now: number) {
   const days = Math.round((startOfDay(ms) - startOfDay(now)) / DAY);
   if (days === 0) return clockTime(ms);
   if (days === 1) return `завтра ${clockTime(ms)}`;
-  return `${weekday.format(ms)}, ${clockTime(ms)}`;
+  if (days > 1 && days < 7) return `${weekday.format(ms)} ${clockTime(ms)}`;
+  return date.format(ms);
 }
 
 /** «через 5 мин», «через 2 ч 10 мин», «через 3 дн». */

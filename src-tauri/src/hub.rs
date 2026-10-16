@@ -5,7 +5,7 @@
 
 use std::sync::Mutex;
 
-use kirk_core::campus::Summary;
+use kirk_core::campus::{Notification, Summary};
 use kirk_core::geometry::Shape;
 use kirk_core::limits::{Connection, Provider, Snapshot};
 use kirk_core::music::NowPlaying;
@@ -32,6 +32,10 @@ pub struct CampusState {
     pub summary: Option<Summary>,
     pub updated_at: Option<i64>,
     pub error: Option<String>,
+    /// Непрочитанных уведомлений.
+    pub unread: u32,
+    /// Последние уведомления.
+    pub notifications: Vec<Notification>,
 }
 
 #[derive(Serialize, Clone, Debug)]

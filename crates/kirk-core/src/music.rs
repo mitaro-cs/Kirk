@@ -55,13 +55,22 @@ impl Command {
 ///
 /// Обложка приходит отдельной строкой после трека: если её нет, а трек тот
 /// же, оставляем прежнюю – иначе она мигала бы.
-pub fn parse_adapter_line(line: &str, previous: Option<&NowPlaying>, now_ms: i64) -> Option<Option<NowPlaying>> {
+pub fn parse_adapter_line(
+    line: &str,
+    previous: Option<&NowPlaying>,
+    now_ms: i64,
+) -> Option<Option<NowPlaying>> {
     let v: Value = serde_json::from_str(line).ok()?;
     if v.get("type").and_then(Value::as_str) != Some("data") {
         return None;
     }
     let p = v.get("payload")?;
-    let text = |k: &str| p.get(k).and_then(Value::as_str).map(str::to_owned).filter(|s| !s.is_empty());
+    let text = |k: &str| {
+        p.get(k)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .filter(|s| !s.is_empty())
+    };
     let num = |k: &str| p.get(k).and_then(Value::as_f64);
     let Some(title) = text("title") else {
         return Some(None);
@@ -106,12 +115,22 @@ mod tests {
 
         let paused = r#"{"type":"data","diff":false,"payload":{"title":"Song","artist":"A","playing":false}}"#;
         let next = parse_adapter_line(paused, Some(&item), 8).unwrap().unwrap();
-        assert_eq!(next.artwork, item.artwork, "обложка того же трека не пропадает");
+        assert_eq!(
+            next.artwork, item.artwork,
+            "обложка того же трека не пропадает"
+        );
 
         let other = r#"{"type":"data","payload":{"title":"Other","artist":"B"}}"#;
-        assert!(parse_adapter_line(other, Some(&item), 9).unwrap().unwrap().artwork.is_none());
+        assert!(parse_adapter_line(other, Some(&item), 9)
+            .unwrap()
+            .unwrap()
+            .artwork
+            .is_none());
 
-        assert_eq!(parse_adapter_line(r#"{"type":"data","payload":{}}"#, None, 0), Some(None));
+        assert_eq!(
+            parse_adapter_line(r#"{"type":"data","payload":{}}"#, None, 0),
+            Some(None)
+        );
         assert_eq!(parse_adapter_line(r#"{"type":"log"}"#, None, 0), None);
         assert_eq!(parse_adapter_line("oops", None, 0), None);
     }
