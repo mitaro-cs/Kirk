@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Окна Kirk: события и команды приложения, открытие ссылок",
+  "windows": ["island", "settings"],
+  "permissions": ["core:default", "opener:default"]
+}

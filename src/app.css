@@ -1,0 +1,41 @@
+/* Общие токены. Шрифт – системный: San Francisco на Mac, Segoe UI Variable на Windows. */
+:root {
+  --font:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', system-ui,
+    sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, monospace;
+  --calm: #7dd3fc;
+  --hot: #fbbf24;
+  --critical: #fb7185;
+  --ok: #34d399;
+  --claude: #e0896a;
+  --codex: #c7d2fe;
+  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Остров: окно прозрачное, всё рисует сам остров. */
+.island-body {
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
